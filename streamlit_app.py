@@ -19,9 +19,15 @@ if not api_key or api_key == "masukkan_api_key_openai_anda_di_sini":
     st.stop()
 
 # Inisialisasi client OpenAI
-client = OpenAI(api_key=api_key)
-# Anda bisa mengganti model ke "gpt-4o" atau "gpt-3.5-turbo" sesuai kebutuhan
-MODEL_NAME = "deepseek-v4.1-flash:free"
+client = OpenAI(
+    api_key=os.environ["TOKENHARBOR_API_KEY"],
+    base_url="https://tokenharbor.ai/v1",
+)
+
+res = client.chat.completions.create(
+    model="deepseek-v4.1-flash:free",
+)
+
 
 # 2. Manajemen Riwayat Percakapan (Session State)
 if "messages" not in st.session_state:
