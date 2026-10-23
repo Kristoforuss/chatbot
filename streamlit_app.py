@@ -1,56 +1,60 @@
 import streamlit as st
 from openai import OpenAI
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
+# Konfigurasi halaman Streamlit
+st.set_page_config(page_title="AI Chatbot", page_icon="🤖", layout="centered")
+st.title("🤖 OpenAI Chatbot Assistant")
+st.caption("Aplikasi chatbot interaktif menggunakan Streamlit dan OpenAI")
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# 1. Manajemen Keamanan & Validasi API Key
+if "TOKENHARBOR_API_KEY" not in st.secrets:
+    st.error("🚨 Konfigurasi API Key tidak ditemukan!")
+    st.info("Pastikan file `.streamlit/secrets.toml` sudah dibuat untuk lokal, atau konfigurasikan Secrets di dashboard Streamlit Community Cloud.")
+    st.stop()
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+api_key = st.secrets["TOKENHARBOR_API_KEY"]
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+if not api_key or api_key == "masukkan_api_key_openai_anda_di_sini":
+    st.warning("⚠️ API Key masih menggunakan nilai default template. Silakan masukkan API Key OpenAI yang valid.")
+    st.stop()
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# Inisialisasi client OpenAI
+client = OpenAI(api_key=api_key)
+# Anda bisa mengganti model ke "gpt-4o" atau "gpt-3.5-turbo" sesuai kebutuhan
+MODEL_NAME = "deepseek-v4.1-flash:free"
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+# 2. Manajemen Riwayat Percakapan (Session State)
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    # Inisialisasi pesan sambutan
+    st.session_state.messages.append({"role": "assistant", "content": "Halo! Saya adalah asisten AI. Ada yang bisa saya bantu hari ini?"})
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# Render ulang seluruh riwayat chat saat ada pembaruan UI
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+# 3. Logika Input Pengguna & Pemrosesan LLM
+if prompt := st.chat_input("Ketik pesan Anda di sini..."):
+    # Render dan simpan pesan pengguna
+    st.chat_message("user").markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
+    try:
         with st.chat_message("assistant"):
+            # Karena format Streamlit state sudah cocok dengan format API OpenAI, 
+            # kita bisa langsung mengoper st.session_state.messages
+            stream = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=st.session_state.messages,
+                stream=True,
+            )
+            
+            # Rendering respons secara streaming (real-time)
             response = st.write_stream(stream)
+            
+        # Simpan respons asisten ke state
         st.session_state.messages.append({"role": "assistant", "content": response})
+
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat menghubungi API OpenAI: {str(e)}")
